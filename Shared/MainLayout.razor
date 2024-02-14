@@ -1,0 +1,37 @@
+﻿@inherits LayoutComponentBase
+@using MauiApp1.Data
+
+
+<div class="page">
+    @if (IsUserLoggedIn())
+    {
+        <div class="sidebar">
+            <NavMenu />
+        </div>
+    }
+
+    <main>
+
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    Authentication authService = new();
+
+    private bool IsUserLoggedIn()
+    {
+        // Update: Pass the session token to check the user's authentication status
+        return authService.IsUserAuthenticated(sessionToken);
+    }
+
+    // Add this property to store the session token
+    [CascadingParameter]
+    private string sessionToken { get; set; }
+
+    // Inject the AuthService
+
+}

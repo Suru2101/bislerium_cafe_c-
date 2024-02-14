@@ -1,0 +1,282 @@
+﻿@page "/menu"
+@inject NavigationManager NavigationManager
+@using MauiApp1.Data
+@inject OrderService OrderService
+
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        background-color: #e0e0e0;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    h1, h2, h3 {
+        color: black;
+        text-align: center;
+    }
+
+    .menu-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+    }
+
+    .coffee-image {
+        width: 100%;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        object-fit: cover;
+        height: 150px; /* Set the desired height for the image */
+    }
+
+    .coffee-card {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        width: 250px;
+        text-align: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+        .coffee-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(0, 123, 255, 0.5); /* Blue border on hover */
+        }
+
+    .menu-item {
+        margin: 10px;
+    }
+
+    .add-ins-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+        .add-ins-container .card {
+            margin: 10px;
+        }
+
+    button.select-btn {
+        background-color: #007bff; /* Blue color for the button */
+        color: #fff;
+        padding: 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        margin-top: 10px;
+    }
+
+        button.select-btn:hover {
+            background-color: #0056b3; /* Darker blue on hover */
+        }
+
+    input[type="checkbox"] {
+        margin-right: 5px;
+    }
+
+    label {
+        font-weight: bold;
+    }
+
+    p {
+        margin: 5px 0;
+    }
+
+    input[type="number"] {
+        width: 50px;
+        margin-top: 10px;
+    }
+</style>
+
+
+<h2 style="text-align:center;">Bislerium Cafe</h2>
+<button class="select-btn" @onclick="SalesReport">Report</button>
+<button class="select-btn" @onclick="StaffLogOut">Log Out</button>
+
+@if (coffeeTypes != null && coffeeTypes.Any())
+{
+    <h2 style="text-align: center;">Coffee Menu</h2>
+    <div class="menu-container">
+        @foreach (var coffeeType in coffeeTypes)
+        {
+            <div class="coffee-card">
+                <img src="images/coffee.jpg" alt="Coffee Image" class="coffee-image" />
+                <h3>@coffeeType.Name</h3>
+                <p>Price: $@coffeeType.Price</p>
+                <button class="select-btn" @onclick="() => SelectCoffeeType(coffeeType)">Select</button>
+            </div>
+        }
+    </div>
+
+
+    @if (selectedCoffeeType != null)
+    {
+        <h2 style="text-align: center; margin-bottom: 20px;">Add-ins for @selectedCoffeeType.Name</h2>
+        <div class="add-ins-container">
+            @foreach (var addIn in selectedCoffeeType.AddIns)
+            {
+                <div class="add-in-item">
+                    <input type="checkbox" @bind="addIn.Selected" id="@addIn.Name" />
+                    <label for="@addIn.Name">@addIn.Name - $ @addIn.Price</label>
+                </div>
+            }
+            <div class="quantity-input">
+                <label for="quantity">Quantity:</label>
+                <input type="number" @bind="selectedQuantity" min="0" id="quantity" />
+            </div>
+            <button class="add-to-order-btn select-btn" @onclick="AddToOrder">Add to Order</button>
+        </div>
+    }
+
+    <br />
+
+    <h2 style="text-align: center;">Selected Items</h2>
+    <div class="order-container">
+        @foreach (var orderItem in orderItems)
+        {
+            <div class="full-width-card">
+                <h3>@orderItem.CoffeeType.Name</h3>
+                <p>Add-ins: @string.Join(", ", orderItem.SelectedAddIns.Select(ai => ai.Name))</p>
+                <p>Quantity: @orderItem.Quantity</p>
+                <p>Total Price: $@orderItem.TotalPrice</p>
+            </div>
+        }
+    </div>
+
+        @if (orderItems.Any())
+        {
+            <!-- Container for Place Order and Clear Orders buttons -->
+            <div class="order-actions">
+                <!-- Clear Orders button -->
+                <button class="select-btn" @onclick="ClearOrders">Clear Orders</button>
+
+                <!-- Place Order button -->
+                <button class="select-btn" @onclick="ShowRecentOrders">Place Order</button>
+            </div>
+        }
+    
+}
+else
+{
+    <p>Loading coffee menu...</p>
+}
+
+@code {
+
+    private List<CoffeeType> coffeeTypes;
+    private CoffeeType selectedCoffeeType;
+    private List<OrderItem> orderItems = new List<OrderItem>();
+    private int selectedQuantity;
+    private readonly string jsonFilePath = "D:/coursework/coffee.json";
+
+    Authentication auth = new Authentication();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfigData();
+    }
+
+    async Task LoadConfigData()
+    {
+        if (File.Exists(jsonFilePath))
+        {
+            var jsonData = await File.ReadAllTextAsync(jsonFilePath);
+            var configData = JsonSerializer.Deserialize<ConfigData>(jsonData);
+
+            if (configData != null)
+            {
+                coffeeTypes = configData.CoffeeTypePrices.Select(pair => new CoffeeType
+                    {
+                        Name = pair.Key,
+                        Price = pair.Value,
+                        AddIns = configData.AddInPrices.Select(ai => new AddIn
+                        {
+                           
+                            Name = ai.Key,
+                            Price = ai.Value
+                        }).ToList()
+                    }).ToList();
+            }
+        }
+    }
+
+    private void SelectCoffeeType(CoffeeType coffeeType)
+    {
+        selectedCoffeeType = coffeeType;
+        selectedQuantity = 0;
+    }
+
+    private void AddToOrder()
+    {
+        if (selectedCoffeeType != null && selectedQuantity > 0)
+        {
+            
+            var clonedCoffeeType = new CoffeeType
+                {
+                    Name = selectedCoffeeType.Name,
+                    Price = selectedCoffeeType.Price,
+                    AddIns = selectedCoffeeType.AddIns.Select(ai => new AddIn
+                    {
+                        
+                        Name = ai.Name,
+                        Price = ai.Price,
+                        Selected = ai.Selected
+                    }).ToList()
+                };
+
+            var selectedAddIns = clonedCoffeeType.AddIns.Where(ai => ai.Selected).ToList();
+
+            var orderItem = new OrderItem
+                {
+                    CoffeeType = clonedCoffeeType,
+                    SelectedAddIns = selectedAddIns,
+                    Quantity = selectedQuantity,
+                    TotalPrice = CalculateTotalPrice(clonedCoffeeType.Price, selectedAddIns)
+                };
+
+            orderItems.Add(orderItem);
+
+            selectedCoffeeType = null;
+            selectedQuantity = 0;
+        }
+    }
+
+
+    private decimal CalculateTotalPrice(decimal coffeeTypePrice, List<AddIn> addIns)
+    {
+        return coffeeTypePrice * selectedQuantity + (selectedQuantity * (addIns.Sum(ai => ai.Price)));
+    }
+
+    private void ShowRecentOrders()
+    {
+        OrderService.RecentOrders.AddRange(orderItems);
+
+        NavigationManager.NavigateTo($"/recentorders");
+    }
+
+    private void ClearOrders()
+    {
+        orderItems.Clear();
+        OrderService.RecentOrders.Clear();
+    }
+
+    private void StaffLogOut()
+    {
+        NavigationManager.NavigateTo("/");
+        auth.DestroySession();
+    }
+
+    public void SalesReport()
+    {
+        NavigationManager.NavigateTo("/salesreport");
+    }
+}

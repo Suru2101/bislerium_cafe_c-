@@ -1,0 +1,74 @@
+/* Daily Sales Report Page Styles */
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    background-color: #f4f4f4;
+}
+
+.card {
+    border: 1px solid #bd7b52;
+    border-radius: 5px;
+    padding: 20px;
+    max-width: 800px;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+h1, h2 {
+    color: #333;
+    margin-top: 20px;
+}
+
+p {
+    margin-top: 10px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+    .table th, .table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+
+    .table th {
+        background-color: #3498db;
+        color: #fff;
+    }
+
+.buttons-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+button {
+    padding: 12px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: white;
+    transition: background-color 0.3s ease;
+    margin-right: 10px;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    button {
+        width: 100%;
+        margin-right: 0;
+    }
+
+    .table {
+        overflow-x: auto;
+    }
+}

@@ -1,0 +1,449 @@
+﻿@page "/customer"
+@inject NavigationManager NavigationManager
+@inject OrderService OrderService
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+
+@using MauiApp1.Data
+@using Microsoft.AspNetCore.Components.Forms
+@using System.IO
+@using System.Text.Json
+@using System.Linq
+
+<style>
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+    }
+
+    .card {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 20px;
+        max-width: 600px;
+        background-color: #fff;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        text-align: left;
+    }
+
+    h1 {
+        text-align: center;
+        margin-top: 20px;
+        color: #bd7b52;
+    }
+
+    label {
+        display: block;
+        margin-top: 10px;
+        color: #333;
+    }
+
+    input {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        box-sizing: border-box;
+    }
+
+    button[type="submit"], button {
+        background-color: #bd7b52;
+        color: #fff;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+        margin-right: 10px;
+    }
+
+    .validation-message {
+        color: red;
+        margin-top: 5px;
+    }
+
+    #freeCoffeeMessage {
+        display: none;
+    }
+
+    .buttons-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+    }
+</style>
+
+
+<div class="card">
+    <h1>Customer Information</h1>
+
+    <EditForm Model="@customerModel" OnValidSubmit="@PayOrder">
+        <DataAnnotationsValidator />
+
+        <div>
+            <label for="customerName">Customer Name:</label>
+            <InputText id="customerName" @bind-Value="customerModel.CustomerName" />
+            <ValidationMessage For="@(() => customerModel.CustomerName)" />
+        </div>
+        <div>
+            <label for="customerPhone">Customer Phone:</label>
+            <InputText id="customerPhone" @bind-Value="customerModel.CustomerPhone" />
+            <ValidationMessage For="@(() => customerModel.CustomerPhone)" />
+        </div>
+
+        <div class="validation-message" style="margin-top: 10px;">@errorMessage</div>
+
+        <div class="buttons-container">
+            <button @onclick="GoBack">Back</button>
+            <button type="submit">Proceed</button>
+        </div>
+    </EditForm>
+
+    <div id="freeCoffeeMessage" style="display:none;"></div>
+</div>
+
+@code {
+    private bool isPaid;
+    private CustomerOrderDetails customerModel = new();
+    private List<OrderItem> recentOrders;
+    List<CustomerOrderDetails> allCustomers = new List<CustomerOrderDetails>();
+    private string errorMessage;
+
+    protected override void OnInitialized()
+    {
+        // Initializes the recentOrders with recent order data from OrderService.
+        recentOrders = OrderService.RecentOrders;
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/recentorders");
+    }
+
+    private void PayOrder()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(customerModel.CustomerName) || string.IsNullOrWhiteSpace(customerModel.CustomerPhone))
+            {
+                errorMessage = "Please enter both fields.";
+            }
+            else if (!int.TryParse(customerModel.CustomerPhone, out _))
+            {
+                errorMessage = "Please enter a valid phone number.";
+            }
+            else
+            {
+                SaveCustomerAndOrderDetails();
+                HandleExistingCustomer();
+                HandleNewCustomer();
+                SaveCustomerOrder();
+                NavigationManager.NavigateTo($"/bill/{customerModel.CustomerName}/{customerModel.CustomerPhone}");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (ex is DifferentNameForExistingPhoneException)
+            {
+                errorMessage = "Name does not match the existing phone number.";
+            }
+            else
+            {
+                errorMessage = "An error occurred while processing the order. Please try again.";
+            }
+        }
+    }
+
+    private void SaveCustomerAndOrderDetails()
+    {
+        var orderDetailsFolderPath = "D:/coursework";
+        var allCustomersFilePath = Path.Combine(orderDetailsFolderPath, "allcustomers.json");
+
+        if (!Directory.Exists(orderDetailsFolderPath))
+        {
+            Directory.CreateDirectory(orderDetailsFolderPath);
+        }
+
+        List<CustomerOrderDetails> existingCustomers = new List<CustomerOrderDetails>();
+        if (File.Exists(allCustomersFilePath))
+        {
+            var existingData = File.ReadAllText(allCustomersFilePath);
+            existingCustomers = JsonSerializer.Deserialize<List<CustomerOrderDetails>>(existingData);
+        }
+
+        var existingCustomer = existingCustomers.FirstOrDefault(c => c.CustomerPhone == customerModel.CustomerPhone);
+
+        if (existingCustomer != null)
+        {
+            if (existingCustomer.CustomerName != customerModel.CustomerName)
+            {
+                throw new DifferentNameForExistingPhoneException();
+            }
+            existingCustomer.Orders.AddRange(recentOrders.Select(orderItem => new OrderItem
+                {
+                    CoffeeType = new CoffeeType
+                    {
+                        Name = orderItem.CoffeeType.Name,
+                        Price = orderItem.CoffeeType.Price,
+                        AddIns = orderItem.CoffeeType.AddIns
+                                .Where(addIn => addIn.Selected)
+                                .Select(addIn => new AddIn
+                                {
+                                    Name = addIn.Name,
+                                    Price = addIn.Price,
+                                    Selected = addIn.Selected
+                                })
+                                .ToList()
+                    },
+                    Quantity = orderItem.Quantity,
+                    TotalPrice = orderItem.TotalPrice,
+                    Date = DateTime.Now // Set the Date property to the current date and time
+                }));
+        }
+        else
+        {
+            var newCustomerOrderDetails = new CustomerOrderDetails
+                {
+                    CustomerName = customerModel.CustomerName,
+                    CustomerPhone = customerModel.CustomerPhone,
+                    Orders = recentOrders.Select(orderItem => new OrderItem
+                    {
+                        CoffeeType = new CoffeeType
+                        {
+                            Name = orderItem.CoffeeType.Name,
+                            Price = orderItem.CoffeeType.Price,
+                            AddIns = orderItem.CoffeeType.AddIns
+                                .Where(addIn => addIn.Selected)
+                                .Select(addIn => new AddIn
+                                {
+                                    Name = addIn.Name,
+                                    Price = addIn.Price,
+                                    Selected = addIn.Selected
+                                })
+                                .ToList()
+                        },
+                        Quantity = orderItem.Quantity,
+
+
+                        TotalPrice = orderItem.TotalPrice,
+                        Date = DateTime.Now // Set the Date property to the current date and time
+                    }).ToList()
+                };
+
+            existingCustomers.Add(newCustomerOrderDetails);
+        }
+
+        var jsonData = JsonSerializer.Serialize(existingCustomers, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        File.WriteAllText(allCustomersFilePath, jsonData);
+    }
+
+    private void HandleExistingCustomer()
+    {
+        var existingCustomer = allCustomers.FirstOrDefault(c => c.CustomerPhone == customerModel.CustomerPhone);
+
+        if (existingCustomer != null)
+        {
+            existingCustomer.Orders.AddRange(recentOrders.Select(orderItem =>
+            {
+                orderItem.Date = DateTime.Now;
+                return orderItem;
+            }));
+            existingCustomer.PurchaseCount += recentOrders.Sum(order => order.Quantity);
+            existingCustomer.LastPurchaseDate = DateTime.Now;
+
+            if (IsRegularCustomer(existingCustomer))
+            {
+                ApplyRegularCustomerDiscount(existingCustomer);
+            }
+
+            ShowFreeCoffeePopup(existingCustomer);
+        }
+    }
+
+    private void HandleNewCustomer()
+    {
+        var existingCustomer = allCustomers.FirstOrDefault(c => c.CustomerPhone == customerModel.CustomerPhone);
+
+        if (existingCustomer == null)
+        {
+            var newCustomerOrderDetails = new CustomerOrderDetails
+                {
+                    CustomerName = customerModel.CustomerName,
+                    CustomerPhone = customerModel.CustomerPhone,
+                    Orders = recentOrders,
+                    PurchaseCount = recentOrders.Sum(order => order.Quantity),
+                    LastPurchaseDate = DateTime.Now
+                };
+
+            allCustomers.Add(newCustomerOrderDetails);
+        }
+    }
+
+    private async Task SaveCustomerOrder()
+    {
+        var orderDetailsFolderPath = "D:/coursework";
+        var allCustomersFilePath = Path.Combine(orderDetailsFolderPath, "allcustomers.json");
+
+        try
+        {
+            List<CustomerOrderDetails> existingCustomers = new List<CustomerOrderDetails>();
+            if (File.Exists(allCustomersFilePath))
+            {
+                var existingData = File.ReadAllText(allCustomersFilePath);
+                existingCustomers = JsonSerializer.Deserialize<List<CustomerOrderDetails>>(existingData);
+            }
+
+            var existingCustomer = existingCustomers.FirstOrDefault(c => c.CustomerPhone == customerModel.CustomerPhone);
+
+            if (existingCustomer != null)
+            {
+                existingCustomer.PurchaseCount += recentOrders.Sum(order => order.Quantity);
+
+                if (IsRegularCustomer(existingCustomer))
+                {
+                    ApplyRegularCustomerDiscount(existingCustomer);
+                }
+
+                await ShowFreeCoffeePopup(existingCustomer);
+
+                existingCustomer.LastPurchaseDate = DateTime.Now; // Update LastPurchaseDate to the current date and time
+
+                var jsonData = JsonSerializer.Serialize(existingCustomers, new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+                File.WriteAllText(allCustomersFilePath, jsonData);
+            }
+            else
+            {
+                var newCustomerOrderDetails = new CustomerOrderDetails
+                    {
+                        CustomerName = customerModel.CustomerName,
+                        CustomerPhone = customerModel.CustomerPhone,
+                        Orders = recentOrders,
+                        PurchaseCount = recentOrders.Sum(order => order.Quantity),
+                        LastPurchaseDate = DateTime.Now // Update LastPurchaseDate for new customer
+                    };
+
+                existingCustomers.Add(newCustomerOrderDetails);
+
+                var jsonData = JsonSerializer.Serialize(existingCustomers, new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+                File.WriteAllText(allCustomersFilePath, jsonData);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving customer order data: {ex.Message}");
+        }
+    }
+
+
+    private async Task ShowFreeCoffeePopup(CustomerOrderDetails customer)
+    {
+        if (customer.PurchaseCount > 0)
+        {
+            int freeCoffeeCount = customer.PurchaseCount / 11;
+
+            if (freeCoffeeCount > 0)
+            {
+                var message = $"Congratulations! You've accumulated {freeCoffeeCount} free coffee(s). Would you like to redeem it now?";
+                var result = await Prompt(message);
+
+                if (result != null && result.ToLower() == "yes")
+                {
+                    if (customer.WantsFreeCoffeeNow)
+                    {
+                        customer.FreeCoffeeCountReceived += freeCoffeeCount;
+                        customer.PurchaseCount %= 10;
+                    }
+                    customer.FreeCoffeeCountReceived += freeCoffeeCount;
+
+                    customer.FreeCoffeeHistory.Add(new FreeCoffeeHistory
+                        {
+                            RedeemDate = DateTime.Now,
+                            RedeemedCount = 0
+                        });
+                    customer.PurchaseCount = 0;
+                }
+                else
+                {
+                    customer.FreeCoffeeHistory.Add(new FreeCoffeeHistory
+                        {
+                            RedeemDate = DateTime.Now,
+                            RedeemedCount = freeCoffeeCount
+                        });
+                }
+            }
+        }
+    }
+
+    // Checking Regular Customer
+    private bool IsRegularCustomer(CustomerOrderDetails customer)
+    {
+        // Assuming regular customers make purchases for at least 22 days
+        int minimumPurchaseDays = 22;
+
+        // Get distinct purchase dates
+        var distinctPurchaseDates = customer.Orders.Select(order => order.Date.Date).Distinct().ToList();
+
+        // Check if the customer has made purchases for at least the minimum number of days
+        if (distinctPurchaseDates.Count >= minimumPurchaseDays)
+        {
+            // Check for consecutive days
+            var orderedDates = distinctPurchaseDates.OrderBy(date => date).ToList();
+            var lastDate = orderedDates.First();
+            var consecutiveDaysCount = 1;
+
+            // skips the first date in the ordered list of distinct purchase dates. 
+            // This is done because, in the context of checking for consecutive days, the first date doesn't have a preceding date to compare.
+            foreach (var date in orderedDates.Skip(1))
+            {
+                if ((date - lastDate).TotalDays == 1)
+                {
+                    consecutiveDaysCount++;
+                }
+                else
+                {
+                    consecutiveDaysCount = 1;
+                }
+
+                lastDate = date;
+            }
+
+            return consecutiveDaysCount >= minimumPurchaseDays;
+        }
+
+        return false;
+    }
+
+    // Discount Applied
+    private void ApplyRegularCustomerDiscount(CustomerOrderDetails customer)
+    {
+        decimal discountPercentage = 0.90m; // 10% discount
+        foreach (var orderItem in customer.Orders)
+        {
+            orderItem.TotalPrice *= discountPercentage;
+        }
+        customer.HasDiscount = true;
+    }
+
+
+    private async Task<string> Prompt(string message)
+    {
+        return await JSRuntime.InvokeAsync<string>("prompt", message);
+    }
+
+    public class DifferentNameForExistingPhoneException : Exception
+    {
+        public DifferentNameForExistingPhoneException() : base("Existing phone number but different name.")
+        {
+        }
+    }
+}

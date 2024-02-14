@@ -1,0 +1,58 @@
+﻿@page "/recentorders"
+@using MauiApp1.Data
+@inject NavigationManager NavigationManager
+@inject OrderService OrderService
+
+
+<div class="order-heading">
+    <h1>Order Details</h1>
+</div>
+
+@if (recentOrders != null && recentOrders.Any())
+{
+    <div class="order-container">
+        @foreach (var orderItem in recentOrders)
+        {
+            <div class="order-item">
+                <h3>@orderItem.CoffeeType.Name</h3>
+                <p>Add-ins: @string.Join(", ", orderItem.SelectedAddIns.Select(ai => ai.Name))</p>
+                <p>Quantity: @orderItem.Quantity</p>
+                <p>Total Price: $@orderItem.TotalPrice</p>
+            </div>
+        }
+        <div class="total-price">
+            <h4>Grand Total: $@recentOrders.Sum(orderItem => orderItem.TotalPrice)</h4>
+        </div>
+        <button class="pay-button" @onclick="() => PayOrder()">Pay Now</button>
+    </div>
+}
+else
+{
+    <p>No recent orders available.</p>
+}
+
+<button class="previous-button" @onclick="GoBack">Previous</button>
+
+@code {
+    private List<OrderItem> recentOrders;
+
+    protected override void OnInitialized()
+    {
+        recentOrders = OrderService.RecentOrders;
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/menu");
+    }
+
+    private void PayOrder()
+
+    {
+
+        // Perform payment logic and update the order status to "Paid"
+
+
+        NavigationManager.NavigateTo("/customer");
+    }
+}

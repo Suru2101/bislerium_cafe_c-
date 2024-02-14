@@ -1,0 +1,91 @@
+/* Styles for Add-ins Container */
+.add-ins-container {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+/* Styles for Add-in Items */
+.add-in-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+    .add-in-item input[type="checkbox"] {
+        margin-right: 10px;
+    }
+
+label {
+    font-size: 1.1em;
+    color: #333; /* Adjust the color to match theme */
+}
+
+input[type="number"] {
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    margin-right: 10px;
+}
+
+/* Styles for Add to Order Button */
+.add-to-order-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+    .add-to-order-btn:hover {
+        background-color: #0056b3;
+    }
+
+.order-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between; /* Align items with space between */
+}
+
+/* Styles for Order Actions Container */
+.order-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end; /* Align items to the end (right) */
+}
+
+/* Styles for Place Order and Clear Orders buttons */
+.select-btn {
+    /* Keep the existing button styles or customize as needed */
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    margin-left:5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+    .select-btn:hover {
+        background-color: #0056b3;
+    }
+
+.full-width-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+    width: 100%; /* Full width of the container */
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+    .full-width-card:hover {
+        transform: scale(1.01);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(0, 123, 255, 0.5);
+    }

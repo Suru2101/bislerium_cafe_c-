@@ -1,0 +1,336 @@
+﻿@page "/dailysalesreport/"
+@inject NavigationManager NavigationManager
+@inject OrderService OrderService
+@using MauiApp1.Data
+@using System.IO
+@using System.Text.Json
+@using System.Linq
+@using System.Collections.Generic
+@using System.Globalization
+@inject IJSRuntime JSRuntime
+
+<style>
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+    }
+
+    .card {
+        border: 1px solid #bd7b52;
+        border-radius: 5px;
+        padding: 20px;
+        max-width: 800px;
+        background-color: #fff;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    h1, h2 {
+        color: #bd7b52;
+        margin-top: 20px;
+    }
+
+    p {
+        margin-top: 10px;
+    }
+
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+        .table th,
+        .table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .table th {
+            background-color: #bd7b52;
+            color: #fff;
+        }
+
+    .buttons-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+    }
+
+    button {
+        background-color: #bd7b52;
+        color: #fff;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+        margin-right: 10px;
+    }
+</style>
+
+<div class="card">
+    <h1>Daily Report</h1>
+
+    @if (reportDate != default)
+    {
+        <p>Selected Date: @reportDate.ToString("yyyy-MM-dd")</p>
+    }
+
+    @if (dailyReports != null && dailyReports.Any())
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Customer Name</th>
+                    <th>Customer Phone</th>
+                    <th>Coffee Name</th>
+                    <th>Quantity</th>
+                    <th>Add-ins</th>
+                    <th>Total Price</th>
+                    <th>Date</th>
+                    <th>Free Coffee Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var customer in dailyReports)
+                {
+                    @foreach (var order in customer.Orders)
+                    {
+                        <tr>
+                            <td>@customer.CustomerName</td>
+                            <td>@customer.CustomerPhone</td>
+                            <td>@order.CoffeeType.Name</td>
+                            <td>@order.Quantity</td>
+                            <td>@string.Join(", ", order.CoffeeType.AddIns.Select(ai => ai.Name))</td>
+                            <td>@order.TotalPrice.ToString("0.00")</td>
+                            <td>@order.Date.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>@customer.FreeCoffeeCountReceived</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <!-- Display Top 5 Coffees -->
+        <h2>Top 5 Coffees</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Coffee Name</th>
+                    <th>Total Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var coffee in GetTopCoffees(dailyReports))
+                {
+                    <tr>
+                        <td>@coffee.Key</td>
+                        <td>@coffee.Value</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <!-- Display Top 5 Add-ins -->
+        <h2>Top 5 Add-ins</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Add-in Name</th>
+                    <th>Total Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var addIn in GetTopAddIns(dailyReports))
+                {
+                    <tr>
+                        <td>@addIn.Key</td>
+                        <td>@addIn.Value</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>No reports available for the selected date.</p>
+    }
+
+    <!-- Display Total Revenue -->
+    <h2>Total Revenue of the Day</h2>
+    <p>$@GetTotalRevenue(dailyReports).ToString("0.00")</p>
+
+    <div class="buttons-container">
+        <button @onclick="GoBack">Back</button>
+        <button @onclick="GoBackHome">Home</button>
+    </div>
+</div>
+
+
+
+@code {
+    private List<CustomerOrderDetails> dailyReports;
+    private DateTime reportDate;
+    private string sessionToken;
+    private string userRole;
+
+    Authentication authService = new Authentication();
+
+    protected override void OnInitialized()
+    {
+        // Check if the URL contains the "date" query parameter
+        if (Uri.TryCreate(NavigationManager.Uri, UriKind.Absolute, out var uri)
+            && uri.Query.Contains("date"))
+        {
+            //parsing
+            var queryString = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            if (DateTime.TryParse(queryString["date"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                reportDate = date;
+            }
+        }
+        LoadDailyReports();
+    }
+
+    private void LoadDailyReports()
+    {
+        try
+        {
+            var orderDetailsFolderPath = "D:/coursework";
+            var allCustomersFilePath = Path.Combine(orderDetailsFolderPath, "allcustomers.json");
+
+            if (File.Exists(allCustomersFilePath))
+            {
+                var existingData = File.ReadAllText(allCustomersFilePath);
+                var allCustomerReports = JsonSerializer.Deserialize<List<CustomerOrderDetails>>(existingData);
+
+                // Filter reports for the selected date
+                dailyReports = allCustomerReports
+     .Where(customer => customer.Orders.Any(order => order.Date.Date == reportDate.Date))
+     .Select(customer =>
+     {
+         // Filter orders for the selected date
+         var filteredOrders = customer.Orders
+             .Where(order => order.Date.Date == reportDate.Date)
+             .ToList();
+
+         if (filteredOrders.Any())
+         {
+           
+             return new CustomerOrderDetails
+                 {
+                     CustomerName = customer.CustomerName,
+                     CustomerPhone = customer.CustomerPhone,
+                     Orders = filteredOrders,
+                    
+                 };
+         }
+         return null; // No matching orders for the selected date
+     })
+     .Where(filteredCustomer => filteredCustomer != null)
+     .ToList();
+
+
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle exceptions
+            Console.WriteLine($"Error loading daily reports: {ex.Message}");
+        }
+    }
+
+    private Dictionary<string, int> GetTopCoffees(List<CustomerOrderDetails> reports)
+    {
+        var coffeeQuantityMap = new Dictionary<string, int>();
+
+        foreach (var report in reports)
+        {
+            foreach (var order in report.Orders)
+            {
+                var coffeeName = order.CoffeeType.Name;
+
+                if (coffeeQuantityMap.ContainsKey(coffeeName))
+                {
+                    coffeeQuantityMap[coffeeName] += order.Quantity;
+                }
+                else
+                {
+                    coffeeQuantityMap.Add(coffeeName, order.Quantity);
+                }
+            }
+        }
+
+        return coffeeQuantityMap.OrderByDescending(kv => kv.Value).Take(5).ToDictionary(kv => kv.Key, kv => kv.Value);
+    }
+
+    private Dictionary<string, int> GetTopAddIns(List<CustomerOrderDetails> reports)
+    {
+        var addInQuantityMap = new Dictionary<string, int>();
+
+        foreach (var report in reports)
+        {
+            foreach (var order in report.Orders)
+            {
+                foreach (var addIn in order.CoffeeType.AddIns)
+                {
+                    var addInName = addIn.Name;
+
+                    if (addInQuantityMap.ContainsKey(addInName))
+                    {
+                        addInQuantityMap[addInName] += order.Quantity;
+                    }
+                    else
+                    {
+                        addInQuantityMap.Add(addInName, order.Quantity);
+                    }
+                }
+            }
+        }
+
+        return addInQuantityMap.OrderByDescending(kv => kv.Value).Take(5).ToDictionary(kv => kv.Key, kv => kv.Value);
+    }
+
+    private decimal GetTotalRevenue(List<CustomerOrderDetails> reports)
+    {
+        decimal totalRevenue = 0;
+
+        foreach (var report in reports)
+        {
+            foreach (var order in report.Orders)
+            {
+                totalRevenue += order.TotalPrice;
+            }
+        }
+
+        return totalRevenue;
+    }
+
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/salesreport");
+    }
+
+    private void GoBackHome()
+    {
+        string token = authService.GetSessionToken();
+        string userRole = authService.GetUserRole(token);
+
+
+
+        if (userRole == "admin")
+        {
+            NavigationManager.NavigateTo("/dashboard");
+        }
+        else if (userRole == "staff")
+        {
+            NavigationManager.NavigateTo("/menu");
+        }
+
+    }
+}

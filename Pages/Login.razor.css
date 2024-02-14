@@ -1,0 +1,90 @@
+/* Resetting default margin and padding */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Centering content */
+.body-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Card-like structure for login */
+.login-card {
+    text-align: center;
+    padding: 40px 20px; /* Increased padding for top and bottom */
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    width: 450px; /* Increased width */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+h2 {
+    margin-bottom: 20px; /* Spacing between headings */
+}
+
+.welcome-box {
+    background-color: #007bff; /* Blue background */
+    color: white; /* White text */
+    padding: 20px; /* Padding for the box */
+    border-radius: 8px; /* Rounded corners */
+    margin-bottom: 20px; /* Spacing between welcome box and login form */
+}
+
+/* Style for form elements */
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+input[type="text"],
+input[type="password"],
+input.form-control {
+    width: 330px;
+    padding: 8px;
+    border-radius: 3px;
+    border: 1px solid #ccc;
+    height: 40px;
+    margin-bottom: 10px;
+    padding-left: 10px;
+}
+
+
+.btn-login {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+.error-message {
+    color: red;
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input.form-control:focus {
+    outline: none;
+    border: 1px solid #007bff;
+    box-shadow: 0 0 10px #007bff;
+}

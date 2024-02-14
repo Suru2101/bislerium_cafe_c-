@@ -1,0 +1,163 @@
+﻿@page "/salesreport"
+@inject NavigationManager NavigationManager
+@inject OrderService OrderService
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+
+@using MauiApp1.Data
+@using Microsoft.AspNetCore.Components.Forms
+@using System.IO
+@using System.Text.Json
+@using System.Linq
+@using System.Collections.Generic
+
+<style>
+    .back-button {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+    }
+</style>
+
+<div class="card">
+    <h1>Sales Report</h1>
+    <div class="back-button">
+        <button @onclick="GoBack">Back</button>
+    </div>
+
+    <div>
+        <input type="date" @bind="selectedDate" />
+        <button @onclick="DailySalesReport">Daily Sales Report</button>
+        <button @onclick="MonthlySalesReport">Monthly Sales Report</button>
+        
+  
+    </div>
+
+    @if (customerReports != null && customerReports.Any())
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Customer Name</th>
+                    <th>Customer Phone</th>
+                    <th>Coffee Name</th>
+                    <th>Quantity</th>
+                    <th>Add-ins</th>
+                    <th>Total Price</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var customer in customerReports)
+                {
+                    @foreach (var order in customer.Orders)
+                    {
+                        <tr>
+                            <td>@customer.CustomerName</td>
+                            <td>@customer.CustomerPhone</td>
+                            <td>@order.CoffeeType.Name</td>
+                            <td>@order.Quantity</td>
+                            <td>@string.Join(", ", order.CoffeeType.AddIns.Select(ai => ai.Name))</td>
+                            <td>@order.TotalPrice.ToString("0.00")</td>
+                            <td>@order.Date.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>No reports available.</p>
+    }
+
+    <h2>Total Revenue Till Date</h2>
+    <p>$@GetTotalRevenue(customerReports).ToString("0.00")</p>
+
+
+</div>
+
+@code {
+    private List<CustomerOrderDetails> customerReports;
+    private DateTime selectedDate = DateTime.Today;
+    private LoginModel loginModel = new LoginModel();
+    private string sessionToken;
+    private string userRole;
+
+    Authentication authService = new Authentication();
+
+    private void LoadCustomerDetails()
+    {
+        try
+        {
+            var orderDetailsFolderPath = "D:/coursework";
+            var allCustomersFilePath = Path.Combine(orderDetailsFolderPath, "allcustomers.json");
+
+            if (File.Exists(allCustomersFilePath))
+            {
+                var existingData = File.ReadAllText(allCustomersFilePath);
+                customerReports = JsonSerializer.Deserialize<List<CustomerOrderDetails>>(existingData);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle exceptions if needed
+            Console.WriteLine($"Error loading customer details: {ex.Message}");
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        LoadCustomerDetails();
+    }
+    private decimal GetTotalRevenue(List<CustomerOrderDetails> reports)
+    {
+        decimal totalRevenue = 0;
+
+        foreach (var report in reports)
+        {
+            foreach (var order in report.Orders)
+            {
+                totalRevenue += order.TotalPrice;
+            }
+        }
+
+        return totalRevenue;
+    }
+
+
+
+
+    private async Task GoBack()
+    {
+        string token = authService.GetSessionToken();
+        string userRole = authService.GetUserRole(token);
+
+
+
+        if (userRole == "admin")
+        {
+            NavigationManager.NavigateTo("/dashboard");
+        }
+        else if (userRole == "staff")
+        {
+            NavigationManager.NavigateTo("/menu");
+        }
+
+
+    }
+
+    private void DailySalesReport()
+    {
+        var formattedDate = selectedDate.ToString("yyyy-MM-dd");
+        NavigationManager.NavigateTo($"/dailysalesreport?date={formattedDate}");
+    }
+
+
+    private void MonthlySalesReport()
+    {
+        var formattedDate = selectedDate.ToString("yyyy-MM");
+        NavigationManager.NavigateTo($"/monthlysalesreport?month={formattedDate}");
+    }
+
+
+}

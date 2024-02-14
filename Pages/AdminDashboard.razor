@@ -1,0 +1,413 @@
+﻿@page "/dashboard"
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@using MauiApp1.Data
+
+<style>
+    
+    body {
+        font-family: 'Arial', sans-serif;
+        background-color: #f5f5f5;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    .container {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin: 20px;
+    }
+
+    h4 {
+        color: #333;
+    }
+
+    ul {
+        list-style-type: none;
+        padding: 0;
+    }
+
+    li {
+        margin-bottom: 15px;
+    }
+
+    /* Input and Button Styles */
+    input[type="text"] {
+        padding: 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        margin-left: 10px;
+    }
+
+    button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+        button.update-btn {
+            background-color: #28a745;
+            color: #fff;
+        }
+
+        button.delete-btn {
+            background-color: #dc3545;
+            color: #fff;
+            margin-left: 10px;
+        }
+
+    /* Message Styles */
+    .message {
+        margin-top: 10px;
+        font-weight: bold;
+    }
+
+        .message.success {
+            color: #dc3545;
+        }
+
+        .message.error {
+            color: #dc3545;
+        }
+
+</style>
+
+<div class="admin-buttons">
+    <h2 class="admin-heading">Admin Dashboard</h2>
+    <div class="button-container">
+        <button class="admin-button" @onclick="AddNewCoffeeType">Add New Coffee</button>
+        <button class="admin-button" @onclick="AddNewAddIn">Add New Add-In</button>
+        <button class="admin-button" @onclick="ConfigureCoffeeTypes">Edit Coffee</button>
+        <button class="admin-button" @onclick="ConfigureAddIns">Edit Add-Ins</button>
+        <button class="admin-button" @onclick="SalesReport">Sales Statistics</button>
+        <button class="admin-button" @onclick="AdminLogOut">Logout</button>
+    </div>
+</div>
+
+
+
+@if (isConfiguringCoffeeTypes)
+{
+    <div>
+        <h4>Edit Coffee Details</h4>
+        <ul>
+            @foreach (var coffeeType in coffeeTypePrices.Keys.ToList())
+            {
+                <li>
+                    @coffeeType - Current Price: @coffeeTypePrices[coffeeType]
+                    <input type="text" style="display: inline-block; margin-left: 10px;" @bind="newCoffeeTypePrices[coffeeType]" placeholder="Enter new price" />
+                    <button style="background-color:aliceblue" @onclick="UpdateCoffeeTypes" >Update</button>
+                    <button style="margin-left: 10px; background-color: red;" @onclick="() => DeleteCoffeeType(coffeeType)">Delete</button>
+
+                </li>
+            }
+        </ul>
+        @if (updateMessage != null)
+        {
+            <p style="color: red; margin-top: 10px;">@updateMessage</p>
+        }
+
+        @if (deleteMessage != null)
+        {
+            <p style="color: red; margin-top: 10px;">@deleteMessage</p>
+        }
+    </div>
+}
+
+@if (isConfiguringAddIns)
+{
+    <div>
+        <h4>Edit Add-Ins Details</h4>
+        <ul>
+            @foreach (var addIn in addInPrices.Keys.ToList())
+            {
+                <li>
+                    @addIn - Current Price: @addInPrices[addIn]
+                    <input type="text" style="display: inline-block; margin-left: 10px;" @bind="newAddInPrices[addIn]" placeholder="Enter new price" />
+                    <button style="margin-left: 10px;" @onclick="UpdateAddIns">Update</button>
+                    <button style="margin-left: 10px; background-color: red;" @onclick="() => DeleteAddIn(addIn)">Delete</button>
+
+                </li>
+            }
+        </ul>
+        @if (updateMessage != null)
+        {
+            <p style="color: red; margin-top: 10px;">@updateMessage</p>
+        }
+        @if (deleteMessage != null)
+        {
+            <p style="color: red; margin-top: 10px;">@deleteMessage</p>
+        }
+    </div>
+}
+
+
+@code {
+
+    private bool isConfiguringCoffeeTypes = false;
+    private bool isConfiguringAddIns = false;
+    public string deleteMessage;
+    public string updateMessage;
+    Authentication auth = new Authentication();
+
+    Dictionary<string, decimal> coffeeTypePrices = new Dictionary<string, decimal>();
+    Dictionary<string, decimal> addInPrices = new Dictionary<string, decimal>();
+    Dictionary<string, decimal> newCoffeeTypePrices = new Dictionary<string, decimal>();
+    Dictionary<string, decimal> newAddInPrices = new Dictionary<string, decimal>();
+
+    // Path to the JSON file
+    private readonly string jsonFilePath = "D:/coursework/coffee.json";
+
+    // This method is called when the component is being initialized.
+    // It asynchronously loads configuration data for coffee types and add-ins.
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfigData();
+    }
+
+
+    // async can run in background and await waits for completion of certain task
+    async Task LoadConfigData()
+    {
+
+        if (File.Exists(jsonFilePath))
+        {
+            var jsonData = await File.ReadAllTextAsync(jsonFilePath);
+
+            var configData = JsonSerializer.Deserialize<ConfigData>(jsonData);
+
+            // If the deserialization is successful and configData is not null,
+            // assign coffeeTypePrices and addInPrices dictionaries.
+            if (configData != null)
+            {
+                coffeeTypePrices = configData.CoffeeTypePrices;
+                addInPrices = configData.AddInPrices;
+            }
+        }
+    }
+
+    // Asynchronously saves the current configuration data to a JSON file.
+    // The method creates a ConfigData object, assigns coffeeTypePrices and addInPrices,
+    // then serializes the object into JSON and writes it to the specified file.
+    async Task SaveConfigData()
+    {
+        // Save configuration data to the JSON file
+        var configData = new ConfigData
+            {
+                CoffeeTypePrices = coffeeTypePrices,
+                AddInPrices = addInPrices
+            };
+
+        var jsonData = JsonSerializer.Serialize(configData);
+
+        await File.WriteAllTextAsync(jsonFilePath, jsonData);
+    }
+
+
+
+    void ConfigureCoffeeTypes()
+    {
+        isConfiguringCoffeeTypes = true;
+        isConfiguringAddIns = false;
+        ResetNewPrices();
+    }
+
+    void ConfigureAddIns()
+    {
+        isConfiguringCoffeeTypes = false;
+        isConfiguringAddIns = true;
+        ResetNewPrices();
+    }
+
+    // Resets the newCoffeeTypePrices and newAddInPrices dictionaries to match the current coffeeTypePrices and addInPrices.
+    // It clears the existing dictionaries and then copies the key-value pairs from the original dictionaries.
+    void ResetNewPrices()
+    {
+        newCoffeeTypePrices.Clear();
+        newAddInPrices.Clear();
+
+        foreach (var coffeeType in coffeeTypePrices.Keys.ToList())
+        {
+            newCoffeeTypePrices[coffeeType] = coffeeTypePrices[coffeeType];
+        }
+
+        foreach (var addIn in addInPrices.Keys.ToList())
+        {
+            newAddInPrices[addIn] = addInPrices[addIn];
+        }
+    }
+
+    async Task UpdateCoffeeTypes()
+    {
+
+        foreach (var coffeeType in newCoffeeTypePrices.Keys.ToList())
+        {
+            coffeeTypePrices[coffeeType] = newCoffeeTypePrices[coffeeType];
+
+
+        }
+
+
+        await SaveConfigData();
+        updateMessage = $"Successfully added price for Coffee";
+
+        await ShowAndHideMessages();
+    }
+
+    async Task UpdateAddIns()
+    {
+
+        foreach (var addIn in newAddInPrices.Keys.ToList())
+        {
+            addInPrices[addIn] = newAddInPrices[addIn];
+
+        }
+
+        await SaveConfigData();
+
+        updateMessage = $"Successfully added price for Add-In";
+
+        await ShowAndHideMessages();
+    }
+
+    void DeleteCoffeeType(string coffeeType)
+    {
+        if (coffeeTypePrices.ContainsKey(coffeeType))
+        {
+            coffeeTypePrices.Remove(coffeeType);
+            SaveConfigData();
+            deleteMessage = $"Successfully deleted: {coffeeType}";
+            ShowAndHideMessage();
+
+        }
+    }
+
+    void DeleteAddIn(string addIn)
+    {
+        if (addInPrices.ContainsKey(addIn))
+        {
+            addInPrices.Remove(addIn);
+            SaveConfigData();
+            deleteMessage = $"Successfully deleted: {addIn}";
+            ShowAndHideMessage();
+        }
+    }
+    public class ConfigData
+    {
+        public Dictionary<string, decimal> CoffeeTypePrices { get; set; } = new Dictionary<string, decimal>();
+        public Dictionary<string, decimal> AddInPrices { get; set; } = new Dictionary<string, decimal>();
+    }
+    async Task<string> Prompt(string message)
+    {
+        return await JSRuntime.InvokeAsync<string>("prompt", message);
+    }
+
+    async void AddNewCoffeeType()
+    {
+        string newCoffeeTypeName = "";
+        decimal newCoffeeTypePrice = 0;
+
+        // input form to get information from the admin
+        newCoffeeTypeName = await Prompt("Enter the name of the new coffee:");
+
+        if (!string.IsNullOrEmpty(newCoffeeTypeName))
+
+        {
+            if (coffeeTypePrices.ContainsKey(newCoffeeTypeName))
+            {
+                await Prompt($"{newCoffeeTypeName} already exists. Please enter another one.");
+
+            }
+            if (decimal.TryParse(await Prompt($"Enter the price for {newCoffeeTypeName}:"),
+                out newCoffeeTypePrice))
+            {
+                coffeeTypePrices.Add(newCoffeeTypeName, newCoffeeTypePrice);
+                SaveConfigData();
+                await JSRuntime.InvokeVoidAsync("alert", $"Coffee '{newCoffeeTypeName}' added successfully!");
+
+            }
+            else
+            {
+                Console.WriteLine("Invalid input. Coffee not added.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Invalid input. Coffee not added.");
+        }
+    }
+    async void AddNewAddIn()
+    {
+        string newAddInName = "";
+        decimal newAddInPrice = 0;
+
+
+        newAddInName = await Prompt("Enter the name of the new AddIn:");
+
+        if (!string.IsNullOrEmpty(newAddInName))
+        {
+            if (addInPrices.ContainsKey(newAddInName))
+            {
+                await Prompt($"{newAddInName} already exists. Please enter another one.");
+
+            }
+            if (decimal.TryParse(await Prompt($"Enter the price for {newAddInName}:"),
+                out newAddInPrice))
+            {
+                addInPrices.Add(newAddInName, newAddInPrice);
+                SaveConfigData();
+                await JSRuntime.InvokeVoidAsync("alert", $"Add-in '{newAddInName}' added successfully!");
+            }
+            else
+            {
+                Console.WriteLine("Invalid input. Add-in not added.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Invalid input. Add-in not added.");
+        }
+    }
+    async Task ShowAndHideMessage()
+    {
+        StateHasChanged();
+
+
+        await Task.Delay(3000);
+
+
+        deleteMessage = null;
+        StateHasChanged();
+    }
+    async Task ShowAndHideMessages()
+    {
+        StateHasChanged();
+
+
+        await Task.Delay(4000);
+
+
+        updateMessage = null;
+        StateHasChanged();
+    }
+    private void AdminLogOut()
+    {
+        NavigationManager.NavigateTo("/");
+        auth.DestroySession();
+
+    }
+    public void SalesReport()
+    {
+        NavigationManager.NavigateTo("/salesreport");
+    }
+}

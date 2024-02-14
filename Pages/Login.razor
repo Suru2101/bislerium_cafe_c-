@@ -1,0 +1,75 @@
+﻿@page "/"
+@using MauiApp1.Data
+
+@inject NavigationManager NavigationManager
+
+<div class="body-container">
+    <div class="login-card">
+        <div class="welcome-box">
+            <h3>Welcome To Bislerium Cafe</h3>
+        </div>
+        <br />
+        <h2>Login</h2>
+
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input id="username" @bind="loginModel.Username" class="form-control" />
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" @bind="loginModel.Password" class="form-control" />
+        </div>
+
+        <div class="form-group">
+            <button @onclick="Logins" class="btn-login">Login</button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            <div class="error-message">@validationMessage</div>
+        }
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private string sessionToken;
+    private string userRole;
+    private string validationMessage;
+    Authentication authService = new Authentication();
+
+    private async Task Logins()
+    {
+        if (string.IsNullOrWhiteSpace(loginModel.Username) || string.IsNullOrWhiteSpace(loginModel.Password))
+        {
+            validationMessage = "Please enter both username and password.";
+            return;
+        }
+
+        bool isAuthenticated = await authService.AuthenticateAsync(loginModel);
+
+        if (isAuthenticated)
+        {
+            sessionToken = authService.GetSessionToken();
+            userRole = authService.GetUserRole(sessionToken);
+
+            if (userRole == "admin")
+            {
+                NavigationManager.NavigateTo("/dashboard");
+            }
+            else if (userRole == "staff")
+            {
+                NavigationManager.NavigateTo("/menu");
+            }
+            else
+            {
+                Console.WriteLine("Invalid user role");
+            }
+        }
+        else
+        {
+            validationMessage = "Invalid username or password.";
+        }
+    }
+}

@@ -1,0 +1,173 @@
+﻿<!-- Bill.razor -->
+
+<style>
+    .line-break {
+        white-space: pre-line;
+    }
+</style>
+
+@page "/bill/{customerName}/{customerPhone}"
+@inject NavigationManager NavigationManager
+@inject OrderService OrderService
+@inject CustomerOrderDetails CustomerOrderDetails
+
+@using MauiApp1.Data
+@using Microsoft.AspNetCore.Components.Forms
+@using System.IO
+@using System.Text.Json
+@using System.Linq
+
+
+<h1>Bislerium Cafe</h1>
+
+<div>
+    <p>Customer Name: @CustomerName</p>
+    <p>Customer Phone: @CustomerPhone</p>
+    <p>Date: @DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")</p>
+</div>
+
+<!-- Table with order details -->
+<table>
+    <thead>
+        <tr>
+            <th>Coffee Name</th>
+            <th>Quantity</th>
+            <th>Coffee Unit Price</th>
+            <th>Coffee Subtotal</th>
+            <th>Add-Ins</th>
+            <th>Add-Ins Price</th>
+            <th>Add-Ins Subtotal</th>
+            <th>Total Price</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var orderItem in recentOrders)
+        {
+            <tr>
+                <td>@orderItem.CoffeeType.Name</td>
+                <td>@orderItem.Quantity</td>
+                
+                <td>@orderItem.CoffeeType.Price</td>
+                <td>@(orderItem.Quantity * orderItem.CoffeeType.Price)</td>
+                <td>
+                    @if (orderItem.CoffeeType.AddIns.Any())
+                    {
+                        @if (orderItem.CoffeeType.AddIns.Count(addIn => addIn.Selected) > 1)
+                        {
+                            <span class="line-break">@string.Join(Environment.NewLine, orderItem.CoffeeType.AddIns.Where(addIn => addIn.Selected).Select(addIn => addIn.Name))</span>
+                        }
+                        else if (orderItem.CoffeeType.AddIns.Count(addIn => addIn.Selected) == 1)
+                        {
+                            <span>@orderItem.CoffeeType.AddIns.Single(addIn => addIn.Selected).Name</span>
+                        }
+                        else
+                        {
+                            <span>No add-ins selected</span>
+                        }
+                    }
+                </td>
+
+                @if (orderItem.CoffeeType.AddIns.Any())
+                {
+                    <td>
+                        <span class="line-break">@string.Join(Environment.NewLine, orderItem.CoffeeType.AddIns.Where(addIn => addIn.Selected).Select(addIn => addIn.Price))</span>
+                    </td>
+                    <td>
+                        <span class="line-break">@string.Join(Environment.NewLine, orderItem.CoffeeType.AddIns.Where(addIn => addIn.Selected).Select(addIn => addIn.Price * orderItem.Quantity))</span>
+                    </td>
+                }
+                else
+                {
+                    <td></td>
+                    <td></td>
+                }
+
+                <td>
+                    $@CalculateTotalPrice(orderItem, customer)
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Total Price -->
+<!-- Display whether the customer received a discount -->
+<p>Discount Applied: @((customer.HasDiscount) ? "10%" : "No")</p>
+
+<!-- Grand Total Price -->
+<h4>Grand Total Price: @recentOrders.Sum(orderItem => orderItem.TotalPrice)</h4>
+
+<!-- Price After Discount -->
+@if (customer.HasDiscount)
+{
+    <p>Price After Discount: @recentOrders.Sum(orderItem => orderItem.TotalPrice * 0.9m)</p>
+}
+
+@* @if (CustomerOrderDetails.WantsFreeCoffeeNow)
+{
+    <p>Congratulations! You've earned free coffee(s).</p>
+} *@
+
+<p style="text-align:center">Thank you for your purchase!</p>
+
+<button @onclick="GoBack">Back</button>
+
+
+@code {
+    [Parameter] public string CustomerName { get; set; }
+    [Parameter] public string CustomerPhone { get; set; }
+    [Parameter] public bool WantsFreeCoffeeNow { get; set; }
+
+    private List<OrderItem> recentOrders;
+    private CustomerOrderDetails customer;
+
+    protected override void OnInitialized()
+    {
+        recentOrders = OrderService.RecentOrders;
+
+        // Load customer details from the file based on the provided name and phone
+        LoadCustomerDetails();
+    }
+
+    private void LoadCustomerDetails()
+    {
+        var orderDetailsFolderPath = "D:/coursework";
+        var allCustomersFilePath = Path.Combine(orderDetailsFolderPath, "allcustomers.json");
+
+        if (File.Exists(allCustomersFilePath))
+        {
+            var existingData = File.ReadAllText(allCustomersFilePath);
+            var allCustomers = JsonSerializer.Deserialize<List<CustomerOrderDetails>>(existingData);
+
+            customer = allCustomers.FirstOrDefault(c => c.CustomerName == CustomerName && c.CustomerPhone == CustomerPhone);
+        }
+    }
+
+    private decimal CalculateTotalPrice(OrderItem orderItem, CustomerOrderDetails customer)
+    {
+        decimal coffeeSubtotal = orderItem.Quantity * orderItem.CoffeeType.Price;
+        decimal addInsSubtotal = orderItem.CoffeeType.AddIns
+            .Where(addIn => addIn.Selected)
+            .Sum(addIn => addIn.Price * orderItem.Quantity);
+        decimal totalPrice = coffeeSubtotal + addInsSubtotal;
+
+        // Check if the customer has redeemed free coffee
+        if (customer.WantsFreeCoffeeNow)
+        {
+            int freeCoffeeCount = customer.FreeCoffeeCountReceived;
+            decimal freeCoffeeDiscount = freeCoffeeCount * orderItem.CoffeeType.Price;
+
+            totalPrice -= freeCoffeeDiscount;
+        }
+
+        return totalPrice;
+    }
+
+
+    private void GoBack()
+    {
+        OrderService.RecentOrders.Clear();
+
+        NavigationManager.NavigateTo("/menu");
+    }
+}
